@@ -3,6 +3,7 @@ package framework
 import (
 	"community-robot-lib/config"
 	sdk "git-platform-sdk"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -16,6 +17,7 @@ type handlers struct {
 	issueCommentHandler       GenericHandler
 	reviewEventHandler        GenericHandler
 	reviewCommentEventHandler GenericHandler
+	customEventHandler        GenericHandler
 }
 
 // RegisterAccessHandler registers a plugin's AnyEvent handler.
@@ -51,4 +53,9 @@ func (h *handlers) RegisterReviewEventHandler(fn GenericHandler) {
 // RegisterReviewCommentEventHandler registers a plugin's ReviewCommentEvent handler.
 func (h *handlers) RegisterReviewCommentEventHandler(fn GenericHandler) {
 	h.reviewCommentEventHandler = fn
+}
+
+// RegisterCustomEventHandler registers a plugin's CustomEventHandler handler.
+func (h *handlers) RegisterCustomEventHandler(fn GenericHandler) {
+	h.customEventHandler = fn
 }

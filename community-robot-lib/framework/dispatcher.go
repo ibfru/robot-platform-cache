@@ -70,6 +70,7 @@ const (
 	IssueCommentEvent
 	PullRequestReviewEvent
 	PullRequestCommentEvent
+	CustomEvent
 )
 
 func (d *dispatcher) initialClient() {
@@ -81,6 +82,7 @@ func (d *dispatcher) initialClient() {
 		d.h.issueCommentHandler,
 		d.h.reviewEventHandler,
 		d.h.reviewCommentEventHandler,
+		d.h.customEventHandler,
 	}
 }
 

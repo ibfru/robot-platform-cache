@@ -1,80 +1,100 @@
 package main
 
 import (
-	"context"
-	"errors"
+	"community-robot-lib/config"
+	"community-robot-lib/interrupts"
+	liboptions "community-robot-lib/options"
+	"community-robot-lib/secret"
 	"flag"
-	"log"
+	"fmt"
+	sdk "git-platform-sdk"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
+	"strconv"
 	"time"
+
+	"golang.org/x/sys/windows"
+
+	"github.com/sirupsen/logrus"
 
 	_ "github.com/go-playground/validator/v10"
 )
 
 type options struct {
-	TokenPath      string
-	TokenGenerator func() []byte
+	service liboptions.ServiceOptions
+	client  liboptions.ClientOptions
 }
 
 func (o *options) Validate() error {
-	// later
-	return nil
+
+	if err := o.service.Validate(); err != nil {
+		return err
+	}
+
+	return o.client.Validate()
 }
 
 func gatherOptions(fs *flag.FlagSet, args ...string) options {
-	var opt options
+	var o options
+
+	o.client.AddFlags(fs)
+	o.service.AddFlags(fs)
 
 	_ = fs.Parse(args)
-	return opt
+	return o
 }
 
 func main() {
-	opt := gatherOptions(flag.NewFlagSet(os.Args[0], flag.ExitOnError), os.Args[1:]...)
+	//opt := gatherOptions(flag.NewFlagSet(os.Args[0], flag.ExitOnError), os.Args[1:]...)
+	opt := options{
+		service: liboptions.ServiceOptions{
+			Port:         7102,
+			ConfigFile:   "D:\\Project\\github\\ibfru\\robot-platform-cache\\local\\config.yaml",
+			GracePeriod:  300 * time.Second,
+			ReadTimeout:  120 * time.Second,
+			WriteTimeout: 120 * time.Second,
+			IdleTimeout:  30 * time.Minute,
+		},
+		client: liboptions.ClientOptions{
+			TokenPath:   "D:\\Project\\github\\ibfru\\robot-platform-cache\\local\\token",
+			HandlerPath: "/dd",
+		},
+	}
 	if err := opt.Validate(); err != nil {
-		log.Println("Configuration invalid, please check config file or program args!")
+		logrus.WithError(err).Fatal("Configuration invalid: " + err.Error())
 		return
 	}
 
-	// Create context that listens for the interrupt signal from the OS.
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
-	router := setupRouter()
-
-	srv := &http.Server{
-		Addr:              ":7102",
-		Handler:           router,
-		ReadHeaderTimeout: 60 * time.Second,
-		ReadTimeout:       120 * time.Second,
-		WriteTimeout:      120 * time.Second,
-		IdleTimeout:       30 * time.Minute,
+	secretAgent := new(secret.Agent)
+	if err := secretAgent.Start([]string{opt.client.TokenPath}); err != nil {
+		logrus.WithError(err).Fatal("Error starting secret agent.")
 	}
 
-	// Initializing the server in a goroutine so that
-	// it won't block the graceful shutdown handling below
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("listen: %s\n", err)
-		}
-	}()
+	defer secretAgent.Stop()
 
-	// Listen for the interrupt signal.
-	<-ctx.Done()
+	bot := newRobot(sdk.GetClientInstance(secretAgent.GetSecret(opt.client.TokenPath)))
 
-	// Restore default behavior on the interrupt signal and notify user of shutdown.
-	stop()
-	log.Println("shutting down gracefully, press Ctrl+C again to force")
-
-	// The context is used to inform the server it has 5 seconds to finish
-	// the request it is currently handling
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatal("Server forced to shutdown: ", err)
+	agent := config.NewConfigAgent(bot.NewConfig)
+	if err := agent.Start(opt.service.ConfigFile); err != nil {
+		logrus.WithError(err).Errorf("start config:%s", opt.service.ConfigFile)
+		return
 	}
 
-	log.Println("Server exiting")
+	defer interrupts.WaitForGracefulShutdown()
+
+	interrupts.OnInterrupt(func() {
+		agent.Stop()
+	})
+
+	httpServer := &http.Server{
+		Addr:         ":" + strconv.Itoa(opt.service.Port),
+		Handler:      bot.setupRouter(),
+		ReadTimeout:  opt.service.ReadTimeout,
+		WriteTimeout: opt.service.WriteTimeout,
+		IdleTimeout:  opt.service.IdleTimeout,
+	}
+
+	fmt.Printf("\u001B[0;31;6m %s%d \u001B[0;30;6m \n", "=========================",
+		windows.GetCurrentProcessId())
+	interrupts.ListenAndServe(httpServer, opt.service.GracePeriod)
+
 }

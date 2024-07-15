@@ -23,7 +23,16 @@ func (c *ClientTarget) DeletePRComment(pr *PRParameter) error {
 
 func (c *ClientTarget) AddPRComment(pr *PRParameter) error {
 	opt := gitee.PullRequestCommentPostParam{Body: pr.Comment}
+	number, _ := strconv.ParseInt(pr.Number, 10, 32)
 	_, _, err := c.ac.PullRequestsApi.PostV5ReposOwnerRepoPullsNumberComments(
-		context.Background(), pr.Org, pr.Repo, pr.Number, opt)
+		context.Background(), pr.Org, pr.Repo, int32(number), opt)
+	return formatErr(err, "create comment of pr")
+}
+
+func (c *ClientTarget) AssignPR(pr *PRParameter) error {
+	opt := gitee.PullRequestCommentPostParam{Body: pr.Comment}
+	number, _ := strconv.ParseInt(pr.Number, 10, 32)
+	_, _, err := c.ac.PullRequestsApi.PostV5ReposOwnerRepoPullsNumberComments(
+		context.Background(), pr.Org, pr.Repo, int32(number), opt)
 	return formatErr(err, "create comment of pr")
 }

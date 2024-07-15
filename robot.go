@@ -1,6 +1,8 @@
 package main
 
 import (
+	"community-robot-lib/config"
+	"community-robot-lib/framework"
 	"fmt"
 	sdk "git-platform-sdk"
 	"net/http"
@@ -8,6 +10,23 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+type robot struct {
+	cli *sdk.ClientTarget
+	ctl *gin.RouterGroup
+}
+
+func newRobot(cli *sdk.ClientTarget) *robot {
+	return &robot{cli: cli}
+}
+
+func (bot *robot) NewConfig() config.Config {
+	return &configuration{}
+}
+
+func (bot *robot) RegisterEventHandler(f framework.HandlerRegister) {
+	// custom handle request
+}
 
 type header struct {
 	Token string `form:"token"`
@@ -30,12 +49,13 @@ func authRequired(c *gin.Context) {
 	c.AbortWithStatusJSON(http.StatusUnauthorized, AuthErrorMessage)
 }
 
-func setupRouter() *gin.Engine {
+func (bot *robot) setupRouter() *gin.Engine {
 	// Disable Console Color
-	println(gin.Mode())
 	if gin.Mode() == gin.ReleaseMode {
 		gin.DisableConsoleColor()
 	}
+
+	fmt.Println("----------------------------------")
 
 	router := gin.New()
 	// LoggerWithFormatter 中间件会写入日志到 gin.DefaultWriter
@@ -57,11 +77,12 @@ func setupRouter() *gin.Engine {
 	router.Use(gin.Recovery())
 
 	// 认证路由组
-	controller := Controller{
-		group:  router.Group("/", authRequired),
-		client: sdk.GetClientInstance(""),
-	}
-	controller.registerRoutePath()
-
+	bot.ctl = router.Group("/", authRequired)
+	bot.registerRoutePath()
 	return router
+}
+
+func (bot *robot) getFile() []*sdk.ContentInfo {
+	a, _ := bot.cli.GetRepoContentsByPath("ibforuorg", "community-fork-to-test", "ci-scripts/check_branch.py")
+	return a
 }

@@ -1,6 +1,7 @@
 package framework
 
 import (
+	"community-robot-lib/options"
 	"net/http"
 	"strconv"
 
@@ -8,7 +9,6 @@ import (
 
 	"community-robot-lib/config"
 	"community-robot-lib/interrupts"
-	"community-robot-lib/options"
 )
 
 type HandlerRegister interface {
@@ -19,6 +19,7 @@ type HandlerRegister interface {
 	RegisterIssueCommentHandler(GenericHandler)
 	RegisterReviewEventHandler(GenericHandler)
 	RegisterReviewCommentEventHandler(GenericHandler)
+	RegisterCustomEventHandler(GenericHandler)
 }
 
 type Robot interface {
@@ -33,26 +34,59 @@ func Run(bot Robot, servOpt options.ServiceOptions, clientOpt options.ClientOpti
 		return
 	}
 
-	h := handlers{}
-	bot.RegisterEventHandler(&h)
-
-	d := &dispatcher{agent: &agent, h: h, hmac: clientOpt.TokenGenerator}
-	GetClientInstance(d)
-
 	defer interrupts.WaitForGracefulShutdown()
 
-	interrupts.OnInterrupt(func() {
-		agent.Stop()
-		d.Wait()
-	})
+	// dispatcher not used, custom handle request
+	if clientOpt.Handler == nil {
+		h := handlers{}
+		bot.RegisterEventHandler(&h)
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// service's healthy check, do nothing
-	})
+		d := &dispatcher{agent: &agent, h: h, hmac: clientOpt.TokenGenerator}
+		GetClientInstance(d)
 
-	http.Handle(clientOpt.HandlerPath, d)
+		interrupts.OnInterrupt(func() {
+			agent.Stop()
+			d.Wait()
+		})
 
-	httpServer := &http.Server{Addr: ":" + strconv.Itoa(servOpt.Port)}
+		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			// service's healthy check, do nothing
+		})
+
+		http.Handle(clientOpt.HandlerPath, d)
+	} else {
+		interrupts.OnInterrupt(func() {
+			agent.Stop()
+		})
+	}
+
+	//h := handlers{}
+	//bot.RegisterEventHandler(&h)
+	//
+	//d := &dispatcher{agent: &agent, h: h, hmac: clientOpt.TokenGenerator}
+	//GetClientInstance(d)
+
+	//interrupts.OnInterrupt(func() {
+	//	agent.Stop()
+	//	d.Wait()
+	//})
+
+	//// dispatcher not used, custom handle request
+	//if clientOpt.Handler == nil {
+	//	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	//		// service's healthy check, do nothing
+	//	})
+	//
+	//	http.Handle(clientOpt.HandlerPath, d)
+	//}
+
+	httpServer := &http.Server{
+		Addr:         ":" + strconv.Itoa(servOpt.Port),
+		Handler:      clientOpt.Handler,
+		ReadTimeout:  servOpt.ReadTimeout,
+		WriteTimeout: servOpt.WriteTimeout,
+		IdleTimeout:  servOpt.IdleTimeout,
+	}
 
 	interrupts.ListenAndServe(httpServer, servOpt.GracePeriod)
 }

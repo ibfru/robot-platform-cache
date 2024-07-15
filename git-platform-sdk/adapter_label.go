@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,8 +35,9 @@ func (c *ClientTarget) GetPRLabels(pr *PRParameter) (*sets.String, error) {
 	opt := gitee.GetV5ReposOwnerRepoPullsNumberLabelsOpts{}
 	for {
 		opt.Page = optional.NewInt32(p)
+		number, _ := strconv.ParseInt(pr.Number, 10, 32)
 		ls, _, err := c.ac.PullRequestsApi.GetV5ReposOwnerRepoPullsNumberLabels(
-			context.Background(), pr.Org, pr.Repo, pr.Number, &opt)
+			context.Background(), pr.Org, pr.Repo, int32(number), &opt)
 		if err != nil {
 			return nil, formatErr(err, "list labels of pr")
 		}
@@ -57,8 +59,9 @@ func (c *ClientTarget) GetPRLabels(pr *PRParameter) (*sets.String, error) {
 
 func (c *ClientTarget) AddPRLabels(pr *PRParameter) error {
 	opt := gitee.PullRequestLabelPostParam{Body: pr.Labels}
+	number, _ := strconv.ParseInt(pr.Number, 10, 32)
 	_, _, err := c.ac.PullRequestsApi.PostV5ReposOwnerRepoPullsNumberLabels(
-		context.Background(), pr.Org, pr.Repo, pr.Number, opt)
+		context.Background(), pr.Org, pr.Repo, int32(number), opt)
 	return formatErr(err, "add multi label for pr")
 }
 
@@ -70,8 +73,9 @@ func (c *ClientTarget) DeletePRLabels(pr *PRParameter) error {
 	// gitee's bug, it can't deal with the label which includes '/'
 	label := strings.Replace(strings.Join(pr.Labels, ","), "/", "%2F", -1)
 
+	number, _ := strconv.ParseInt(pr.Number, 10, 32)
 	v, err := c.ac.PullRequestsApi.DeleteV5ReposOwnerRepoPullsLabel(
-		context.Background(), pr.Org, pr.Repo, pr.Number, label, nil)
+		context.Background(), pr.Org, pr.Repo, int32(number), label, nil)
 
 	if err == nil || (v != nil && v.StatusCode == 404) {
 		return nil
@@ -105,4 +109,12 @@ func (c *ClientTarget) AddRepoLabels(lp *LabelParameter) error {
 	_, _, err := c.ac.LabelsApi.PostV5ReposOwnerRepoLabels(context.Background(), lp.Org, lp.Repo, param)
 
 	return formatErr(err, "create a repo label")
+}
+
+func (c *ClientTarget) AddIssueLabels(iss *IssueParameter) error {
+	opt := gitee.PullRequestLabelPostParam{Body: iss.Labels}
+	number, _ := strconv.ParseInt(iss.Number, 10, 32)
+	_, _, err := c.ac.PullRequestsApi.PostV5ReposOwnerRepoPullsNumberLabels(
+		context.Background(), iss.Org, iss.Repo, int32(number), opt)
+	return formatErr(err, "add multi label for pr")
 }

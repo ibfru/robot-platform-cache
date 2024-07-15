@@ -36,7 +36,7 @@ func (c *configuration) SetDefault() {
 type botConfig struct {
 
 	// CacheFileSourceUrl is the url of code hosting platform repository that need to cache something
-	CacheFileSourceUrl string `json:"cache_file_source_url" required:"true"`
+	SigProjectPath string `yaml:"sig-project-path"`
 }
 
 func (c *botConfig) setDefault() {

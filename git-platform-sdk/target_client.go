@@ -35,8 +35,8 @@ func initialClient() {
 	}
 }
 
-func GetClientInstance(t string) *ClientTarget {
-	token = t
+func GetClientInstance(t []byte) *ClientTarget {
+	token = string(t)
 	onceClient.Do(initialClient)
 	return ct
 }
@@ -58,17 +58,18 @@ type LabelClient interface {
 	DeletePRLabels(pr *PRParameter) error
 
 	//GetIssueLabels(iss *IssueParameter) (sets.String, error)
-	//AddIssueLabels(iss *IssueParameter) error
+	AddIssueLabels(iss *IssueParameter) error
 	//RemoveIssueLabels(iss *PRParameter) error
 }
 
 type PRParameter struct {
 	Org       string `json:"org" binding:"orgValid"`
 	Repo      string
-	Number    int32
+	Number    string
 	Labels    []string
 	Comment   string
 	CommentID string
+	Reviewers []string
 	Payload   any
 	Extras    any
 }
@@ -76,15 +77,25 @@ type PRParameter struct {
 type PRClient interface {
 	AddPRComment(pr *PRParameter) error
 	DeletePRComment(pr *PRParameter) error
+
+	AssignPR(pr *PRParameter) error
 }
 
 type IssueParameter struct {
-	Org     string
-	Repo    string
-	Number  int
-	Labels  []string
-	Payload any
-	Extras  any
+	Org       string
+	Repo      string
+	Number    string
+	Labels    []string
+	Comment   string
+	CommentID string
+	Reviewers []string
+	Payload   any
+	Extras    any
+}
+
+type IssueClient interface {
+	AddIssueComment(iss *IssueParameter) error
+	DeleteIssueComment(iss *IssueParameter) error
 }
 
 type ContentInfo struct {
@@ -100,5 +111,6 @@ type ContentInfo struct {
 }
 
 type RepoClient interface {
-	GetRepoContentsByPath() []*ContentInfo
+	GetRepoContentsByPath(org, repo, path string) ([]*ContentInfo, error)
+	ListCollaborator(org, repo string) ([]string, error)
 }

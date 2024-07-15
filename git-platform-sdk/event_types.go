@@ -22,21 +22,31 @@ import (
 const (
 	WebhookUserAgentKey   = "User-Agent"
 	WebhookUserAgentValue = "AtomGit-Hookshot"
+
+	ActionStateCreated = "created"
 )
 
 type GenericEvent struct {
-	EventType int
-	EventName string
-	EventUUID string
-	Action    string
-	Org       string
-	Repo      string
-	HtmlURL   string
-	Ref       string // PushEvent
-	Head      string // PushEvent
-	Review    string // PullRequestReviewEvent || PullRequestCommentEvent
-	Reviewer  string // PullRequestReviewEvent || PullRequestCommentEvent
-	Payload   []byte
+	EventType      int
+	EventName      string
+	EventUUID      string
+	Action         string
+	Org            string
+	Repo           string
+	HtmlURL        string
+	Ref            string // PushEvent
+	Head           string // PushEvent
+	Review         string // PullRequestReviewEvent || PullRequestCommentEvent
+	Reviewer       string // PullRequestReviewEvent || PullRequestCommentEvent
+	PRAuthor       string
+	PRCommenter    string
+	PRComment      string
+	PRNumber       string
+	IssueAuthor    string
+	IssueCommenter string
+	IssueComment   string
+	IssueNumber    string
+	Payload        []byte
 }
 
 func (ge *GenericEvent) ConvertToBytes() ([]byte, error) {
@@ -67,6 +77,13 @@ func (ge *GenericEvent) ConvertToMap() map[string]interface{} {
 			orgRepoSlice := strings.Split(orgRepo, "/")
 			ge.Org = orgRepoSlice[0]
 			ge.Repo = orgRepoSlice[1]
+		}
+
+		pr, _ := b["pull_request"].(map[string]any)
+		prUser, _ := pr["user"].(map[string]any)
+		loginVal, _ := prUser["login"].(string)
+		if loginVal != "" {
+			ge.PRAuthor = loginVal
 		}
 	}
 
